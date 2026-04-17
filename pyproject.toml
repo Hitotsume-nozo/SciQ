@@ -1,0 +1,35 @@
+[project]
+name = "forge"
+version = "0.1.0"
+description = "Self-Improving Code & Math Reasoning via Verified Self-Play Fine-Tuning"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+
+dependencies = [
+    "torch>=2.2",
+    "transformers>=4.45",
+    "peft>=0.13",
+    "trl>=0.12",
+    "bitsandbytes>=0.43",
+    "datasets>=3.0",
+    "accelerate>=1.0",
+    "unsloth",
+    "sympy>=1.13",
+    "docker>=7.0",
+    "wandb",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+    "click>=8.0",
+]
+
+[project.optional-dependencies]
+eval = [
+    "lm-eval>=0.4",
+]
+vllm = [
+    "vllm>=0.6",
+]
+
+[tool.setuptools.packages.find]
+include = ["forge*"]

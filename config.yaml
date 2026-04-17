@@ -1,0 +1,179 @@
+# ============================================================================
+# Forge Configuration
+# Self-Improving Code & Math Reasoning via Verified Self-Play
+# Target: 1x A100 40GB, ~24 hours
+# ============================================================================
+
+# --- Model ---
+model:
+  name: "Qwen/Qwen2.5-Coder-7B-Instruct"
+  quantization: "nf4"             # 4-bit NormalFloat quantization
+  double_quant: true              # Double quantization for extra memory savings
+  torch_dtype: "bfloat16"
+  attn_implementation: "sdpa"
+  max_seq_length: 4096
+  trust_remote_code: true
+
+# --- Stratified LoRA ---
+lora:
+  # Depth-aware rank allocation (28 layers in Qwen2.5-7B)
+  layers:
+    foundation:                   # Layers 0-6: language understanding
+      start: 0
+      end: 6
+      rank: 8
+      alpha: 16
+    reasoning_core:               # Layers 7-13: algorithmic reasoning
+      start: 7
+      end: 13
+      rank: 32
+      alpha: 64
+    deep_reasoning:               # Layers 14-20: multi-step computation
+      start: 14
+      end: 20
+      rank: 48
+      alpha: 96
+    generation:                   # Layers 21-27: output synthesis
+      start: 21
+      end: 27
+      rank: 24
+      alpha: 48
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  dropout: 0.05
+  bias: "none"
+
+# --- Data ---
+data:
+  # Datasets to load from HuggingFace
+  sources:
+    gsm8k:
+      path: "openai/gsm8k"
+      subset: "main"
+      split: "train"
+      domain: "math"
+    math:
+      path: "EleutherAI/hendrycks_math"
+      subset: "all"
+      split: "train"
+      domain: "math"
+    code_contests:
+      path: "deepmind/code_contests"
+      split: "train"
+      domain: "code"
+    mbpp:
+      path: "google-research-datasets/mbpp"
+      split: "train"
+      domain: "code"
+  # Target sizes after filtering/sampling
+  max_sft_examples: 20000
+  max_selfplay_problems: 2000
+  max_refine_problems: 2000
+
+# --- Phase 1: Reasoning SFT ---
+sft:
+  learning_rate: 2.0e-4
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.03
+  num_epochs: 3
+  per_device_batch_size: 4
+  gradient_accumulation_steps: 4  # effective batch = 16
+  max_grad_norm: 1.0
+  weight_decay: 0.01
+  optimizer: "adamw_8bit"
+  logging_steps: 10
+  save_steps: 500
+  eval_steps: 250
+  output_dir: "./checkpoints/phase1_sft"
+
+# --- Phase 2: Self-Play DPO ---
+selfplay:
+  generation:
+    num_candidates: 8             # K=8 solutions per problem
+    temperature: 0.7
+    top_p: 0.95
+    max_new_tokens: 1024
+    batch_size: 4                 # Problems to process in parallel
+    output_dir: "./cache/selfplay_solutions"
+  verification:
+    code_timeout: 5               # seconds per execution
+    code_memory_limit: "256m"
+    math_tolerance: 1.0e-6
+    max_docker_workers: 10
+    docker_image: "python:3.11-slim"
+  pair_building:
+    min_correct: 1                # Need at least 1 correct solution
+    min_incorrect: 1              # Need at least 1 incorrect solution
+    max_pairs_per_problem: 4      # Cap pairs to avoid imbalance
+    conciseness_bonus: true       # Prefer shorter correct solutions
+
+dpo:
+  beta: 0.1                       # KL penalty coefficient
+  learning_rate: 5.0e-6
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.03
+  num_epochs: 2
+  per_device_batch_size: 2
+  gradient_accumulation_steps: 8  # effective batch = 16
+  max_grad_norm: 1.0
+  weight_decay: 0.01
+  optimizer: "adamw_8bit"
+  loss_type: "sigmoid"            # Standard DPO loss
+  label_smoothing: 0.0
+  logging_steps: 10
+  save_steps: 500
+  output_dir: "./checkpoints/phase2_dpo"
+
+# --- Phase 3: Refinement ---
+refinement:
+  focus: "hard"                   # Focus on hard problems
+  dpo_epochs: 1                   # Quick refinement round
+  output_dir: "./checkpoints/phase3_final"
+
+# --- Evaluation ---
+evaluation:
+  mini_eval:                      # Quick eval at each checkpoint
+    gsm8k_samples: 200
+    humaneval: true               # Always run full HumanEval (164 problems)
+    mbpp_samples: 100
+  full_eval:                      # Final comprehensive eval
+    benchmarks:
+      - "gsm8k"
+      - "minerva_math"
+      - "humaneval"
+      - "mbpp"
+    batch_size: 8
+
+# --- Curriculum ---
+curriculum:
+  # Difficulty thresholds based on base model pass@8
+  easy_threshold: 0.7             # >70% pass rate = easy
+  hard_threshold: 0.3             # <30% pass rate = hard
+  # Mix per phase
+  phase1_mix:
+    easy: 0.4
+    medium: 0.4
+    hard: 0.2
+  phase2_mix:
+    easy: 0.2
+    medium: 0.5
+    hard: 0.3
+  phase3_mix:
+    easy: 0.05
+    medium: 0.35
+    hard: 0.6
+
+# --- Infrastructure ---
+infrastructure:
+  seed: 42
+  output_base: "./outputs"
+  cache_dir: "./cache"
+  wandb_project: "forge"
+  wandb_run_name: "forge-v1"
+  logging_level: "INFO"
