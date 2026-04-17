@@ -1,8 +1,8 @@
-# 🔨 Forge
+# Forge
 
 **Self-Improving Code & Math Reasoning via Verified Self-Play Fine-Tuning**
 
-> One A100 40GB. Twenty-four hours. No reward model. No human annotators.
+> One H100 40GB. Twenty-four hours. No reward model. No human annotators.
 
 Forge trains a 7B language model to substantially improve at code generation and mathematical reasoning by learning from its own verified outputs through an iterative self-play loop.
 
@@ -19,14 +19,15 @@ For domains with **verifiable correctness** — code (does it pass tests?) and m
 ## Architecture Highlights
 
 ### Stratified LoRA
+
 Depth-aware adapter architecture that allocates more trainable parameters to reasoning-heavy layers:
 
-| Layer Group | Layers | Rank | Purpose |
-|---|---|---|---|
-| Foundation | 0–6 | 8 | Language understanding (mostly frozen) |
-| Reasoning Core | 7–13 | 32 | Algorithmic planning |
-| Deep Reasoning | 14–20 | 48 | Multi-step computation |
-| Generation | 21–27 | 24 | Output synthesis |
+| Layer Group    | Layers | Rank | Purpose                                |
+| -------------- | ------ | ---- | -------------------------------------- |
+| Foundation     | 0–6    | 8    | Language understanding (mostly frozen) |
+| Reasoning Core | 7–13   | 32   | Algorithmic planning                   |
+| Deep Reasoning | 14–20  | 48   | Multi-step computation                 |
+| Generation     | 21–27  | 24   | Output synthesis                       |
 
 ### 3-Phase Training Pipeline
 
@@ -37,6 +38,7 @@ Phase 3: Refinement        (Hours 20–24)  → Push limits
 ```
 
 ### Multi-Signal Preference Pairs
+
 - **Correctness**: correct solution > incorrect solution
 - **Reasoning quality**: coherent steps > jumbled reasoning
 - **Conciseness**: shorter correct > longer correct
@@ -44,7 +46,8 @@ Phase 3: Refinement        (Hours 20–24)  → Push limits
 ## Quick Start
 
 ### Prerequisites
-- NVIDIA A100 40GB (or equivalent)
+
+- NVIDIA H100/A100 40GB (or equivalent) {We have used H100 for this experiment}
 - Python 3.10+
 - Docker (optional, for code sandbox)
 
@@ -114,12 +117,12 @@ Limits/
 
 ## Hardware Requirements
 
-| Component | Minimum | Recommended |
-|---|---|---|
-| GPU | H100 40GB | H100 80GB |
-| RAM | 32 GB | 64 GB |
-| Storage | 100 GB | 200 GB SSD |
-| Time | ~24 hours | ~24 hours |
+| Component | Minimum   | Recommended |
+| --------- | --------- | ----------- |
+| GPU       | H100 40GB | H100 80GB   |
+| RAM       | 32 GB     | 64 GB       |
+| Storage   | 100 GB    | 200 GB SSD  |
+| Time      | ~24 hours | ~24 hours   |
 
 ## Configuration
 
@@ -134,11 +137,11 @@ All settings live in `config.yaml`. Key parameters:
 ## Expected Results
 
 | Benchmark | Baseline | Post-Forge (Conservative) |
-|---|---|---|
-| GSM8K | ~84% | ~88% |
-| MATH | ~50% | ~57% |
-| HumanEval | ~88% | ~90% |
-| MBPP+ | ~76% | ~80% |
+| --------- | -------- | ------------------------- |
+| GSM8K     | ~84%     | ~88%                      |
+| MATH      | ~50%     | ~57%                      |
+| HumanEval | ~88%     | ~90%                      |
+| MBPP+     | ~76%     | ~80%                      |
 
 ## License
 
